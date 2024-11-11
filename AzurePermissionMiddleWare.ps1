@@ -29,36 +29,6 @@
     Performance Considerations: https://docs.microsoft.com/en-us/powershell/scripting/dev-cross-plat/performance/script-authoring-considerations?view=powershell-7.1
 #>
 
-#region INITIALIZATION
-<# 
-    Libraries, Modules, ...
-#>
-
-# Require PowerShell Version 7 for Azure Module
-#Requires -Version 7
-
-# Require Azure PowerShell-Module
-#Requires -Modules Az.Accounts, Az.Resources
-
-# Require Microsoft Graph PowerShell SDK
-#Requires -Modules Microsoft.Graph.Authentication, Microsoft.Graph.Users.Actions
-
-# Check if .NET Framework 4.7.2+ is installed for Microsoft Graph PowerShell SDK
-$release = Get-ItemPropertyValue -LiteralPath 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -Name Release
-if ($release -lt 461808) {
-    throw '.NET Framework 4.7.2 or later required but not found. Please visit https://learn.microsoft.com/en-us/dotnet/framework/install/'
-}
-
-#endregion INITIALIZATION
-#region DECLARATIONS
-<#
-    Declare local variables and global variables
-#>
-
-$AzureAplicationId = $env:AzureAplicationId
-$AzureTenantId = $env:AzureTenantId
-
-#endregion DECLARATIONS
 #region FUNCTIONS
 <# 
     Declare Functions
@@ -107,6 +77,41 @@ function Write-ConsoleLog {
 }
 
 #endregion FUNCTIONS
+#region INITIALIZATION
+<# 
+    Libraries, Modules, ...
+#>
+
+Log 'Lade Module...'
+
+# Require PowerShell Version 7 for Azure Module
+#Requires -Version 7
+
+# Require Azure PowerShell-Module
+#Requires -Modules Az.Accounts, Az.Resources
+Import-Module -Name Az.Accounts, Az.Resources
+
+# Require Microsoft Graph PowerShell SDK
+#Requires -Modules Microsoft.Graph.Authentication, Microsoft.Graph.Users.Actions
+Import-Module -Name Microsoft.Graph.Authentication, Microsoft.Graph.Users.Actions
+
+# Check if .NET Framework 4.7.2+ is installed for Microsoft Graph PowerShell SDK
+$release = Get-ItemPropertyValue -LiteralPath 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -Name Release
+if ($release -lt 461808) {
+    throw '.NET Framework 4.7.2 or later required but not found. Please visit https://learn.microsoft.com/en-us/dotnet/framework/install/'
+}
+
+#endregion INITIALIZATION
+#region DECLARATIONS
+<#
+    Declare local variables and global variables
+#>
+
+$AzureAplicationId = # Hier eintragen
+$AzureTenantId = # Hier eintragen
+$LocalCertThumb = # Hier eintragen
+
+#endregion DECLARATIONS
 #region EXECUTION
 <# 
     Script entry point
@@ -115,10 +120,12 @@ function Write-ConsoleLog {
 try {
     # Assign to $null to suppress console output
     Log 'Verbinde zu Azure...'
-    $null = Connect-AzAccount -ApplicationId $AzureAplicationId -TenantId $AzureTenantId -ServicePrincipal:$true -CertificateThumbprint 'A3C69A651E899697F328C7101BF1C1EAA58E26DC'
+    $null = Connect-AzAccount -ApplicationId $AzureAplicationId -TenantId $AzureTenantId -ServicePrincipal:$true -CertificateThumbprint $LocalCertThumb -ErrorAction Stop
 
     Log 'Bereite Benutzerauswahl durch Mensch vor...'
-    $User = Get-AzADUser | Select-Object @{n='Vorname';e={$_.GivenName}}, @{n='Nachname';e={$_.Surname}}, @{n='Anzeigename';e={$_.DisplayName}}, UserPrincipalName | Out-GridView -OutputMode Single -PassThru -Title 'Bitte wähle den zu deaktivierenden Benutzer aus'
+    $User = Get-AzADUser | 
+        Select-Object @{n='Vorname';e={$_.GivenName}}, @{n='Nachname';e={$_.Surname}}, @{n='Anzeigename';e={$_.DisplayName}}, UserPrincipalName, Id | 
+        Out-GridView -OutputMode Single -Title 'Bitte wähle den zu deaktivierenden Benutzer aus'
 
     Log 'Deaktiviere Benutzer...'
     $null = Set-AzADUser -UPNOrObjectId $User.UserPrincipalName -AccountEnabled:$false
@@ -126,7 +133,7 @@ try {
     $null = Disconnect-AzAccount
 
     Log 'Verbinde zu Microsoft Graph API...'
-    $null = Connect-MgGraph -ClientID $AzureAplicationId -TenantId $AzureTenantId -CertificateThumbprint 'A3C69A651E899697F328C7101BF1C1EAA58E26DC' -NoWelcome
+    $null = Connect-MgGraph -ClientID $AzureAplicationId -TenantId $AzureTenantId -CertificateThumbprint $LocalCertThumb -NoWelcome -ErrorAction Stop
 
     Log 'Wiederrufe alle aktiven Sitzungen des Benutzers...'
     $null = Revoke-MgUserSignInSession -UserId $User.Id -Confirm:$false
@@ -134,6 +141,12 @@ try {
     $null = Disconnect-MgGraph
 
     Log 'Fertig.'
+    Log 'Fesnster schließ sich in 3'
+    Start-Sleep -Seconds 1
+    Log 'Fesnster schließ sich in 2'
+    Start-Sleep -Seconds 1
+    Log 'Fesnster schließ sich in 1'
+    Start-Sleep -Seconds 1
 } catch {
     Log 'Ein Fehler ist aufgetreten. Bitte Michael Schönburg unter support@itc-engels.de folgende Fehlermeldung zusenden:'
     $_
