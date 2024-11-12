@@ -107,9 +107,10 @@ if ($release -lt 461808) {
     Declare local variables and global variables
 #>
 
-$AzureAplicationId = # Hier eintragen
-$AzureTenantId = # Hier eintragen
-$LocalCertThumb = # Hier eintragen
+$Csv = Import-Csv -Path .\auth.csv -Delimiter ','
+$AzureAplicationId = $Csv.AzureAplicationId
+$AzureTenantId = $Csv.AzureTenantId
+$LocalCertThumb = $Csv.LocalCertThumb
 
 #endregion DECLARATIONS
 #region EXECUTION
@@ -141,11 +142,11 @@ try {
     $null = Disconnect-MgGraph
 
     Log 'Fertig.'
-    Log 'Fesnster schließ sich in 3'
+    Log 'Fenster schließt sich in 3'
     Start-Sleep -Seconds 1
-    Log 'Fesnster schließ sich in 2'
+    Log 'Fenster schließt sich in 2'
     Start-Sleep -Seconds 1
-    Log 'Fesnster schließ sich in 1'
+    Log 'Fenster schließt sich in 1'
     Start-Sleep -Seconds 1
 } catch {
     Log 'Ein Fehler ist aufgetreten. Bitte Michael Schönburg unter support@itc-engels.de folgende Fehlermeldung zusenden:'
