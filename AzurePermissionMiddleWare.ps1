@@ -123,25 +123,36 @@ try {
     Log 'Verbinde zu Azure...'
     $null = Connect-AzAccount -ApplicationId $AzureAplicationId -TenantId $AzureTenantId -ServicePrincipal:$true -CertificateThumbprint $LocalCertThumb -ErrorAction Stop
 
-    Log 'Bereite Benutzerauswahl durch Mensch vor...'
-    $User = Get-AzADUser | 
-        Select-Object @{n='Vorname';e={$_.GivenName}}, @{n='Nachname';e={$_.Surname}}, @{n='Anzeigename';e={$_.DisplayName}}, UserPrincipalName, Id | 
-        Out-GridView -OutputMode Single -Title 'Bitte wähle den zu deaktivierenden Benutzer aus'
-
-    Log 'Deaktiviere Benutzer...'
-    $null = Set-AzADUser -UPNOrObjectId $User.UserPrincipalName -AccountEnabled:$false
-
-    $null = Disconnect-AzAccount
-
     Log 'Verbinde zu Microsoft Graph API...'
     $null = Connect-MgGraph -ClientID $AzureAplicationId -TenantId $AzureTenantId -CertificateThumbprint $LocalCertThumb -NoWelcome -ErrorAction Stop
 
-    Log 'Wiederrufe alle aktiven Sitzungen des Benutzers...'
-    $null = Revoke-MgUserSignInSession -UserId $User.Id -Confirm:$false
+    Log 'Bereite Benutzerauswahl vor...'
+    $Users = Get-AzADUser -AppendSelected -Select AccountEnabled | 
+        Select-Object @{n='Aktiviert';e={switch ($_.AccountEnabled) {
+            $true { 'Ja' }
+            $false { 'Nein' }
+            Default { 'Error' }
+        }}}, @{n='Vorname';e={$_.GivenName}}, @{n='Nachname';e={$_.Surname}}, @{n='Anzeigename';e={$_.DisplayName}}, UserPrincipalName | 
+        Out-GridView -OutputMode Multiple -Title 'Bitte wähle einen oder mehrere zu deaktivierenden Benutzer aus'
 
+    foreach ($u in $Users) {
+        # Get the "Id" property which was lost through Select-Object
+        $u = Get-AzADUser -UserPrincipalName $u.UserPrincipalName
+
+        Log "Deaktiviere Benutzer $($u.UserPrincipalName)..."
+        $null = Set-AzADUser -UPNOrObjectId $u.UserPrincipalName -AccountEnabled:$false
+
+        Log "Wiederrufe alle aktiven Sitzungen des Benutzers $($u.UserPrincipalName)..."
+        $null = Revoke-MgUserSignInSession -UserId $u.Id -Confirm:$false
+    }
+
+    Log 'Trenne Verbindung zu Azure...'
+    $null = Disconnect-AzAccount
+
+    Log 'Trenne Verbindung zur Graph API...'
     $null = Disconnect-MgGraph
 
-    Log 'Fertig.'
+    Log '-------------------- Fertig --------------------'
     Log 'Fenster schließt sich in 3'
     Start-Sleep -Seconds 1
     Log 'Fenster schließt sich in 2'
